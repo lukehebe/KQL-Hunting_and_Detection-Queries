@@ -1,5 +1,4 @@
-
-// This query detects obfuscated and encoded powershell commands this is the skeleton and will need to be tuned for your environment the detetcion rule / query looks for - 
+// This query detects obfuscated and encoded powershell commands using regex on non privileged accounts for -
 // - Base64 encoded commands - cG93ZXJzaGVsbA== (decodes to "powershell")
 // - Hex encoding - 706F7765727368656C6C (hex for "powershell")
 // - Character obfuscation Unicode/Special \u0070\u006f\u0077\u0065\u0072 (powershell.exe -Command "\u0070\u006f\u0077\u0065\u0072")
@@ -22,7 +21,8 @@
 DeviceProcessEvents
 // Account filtering
 | where AccountName !in ("")
-and InitiatingProcessAccountName !in ("")
+and InitiatingProcessAccountName !in (")
+| where FileName in~ ("powershell.exe", "pwsh.exe")
 | where isnotempty(ProcessCommandLine)
 | where ProcessCommandLine !~ "powershell.exe"
     and ProcessCommandLine !~ "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
@@ -35,12 +35,10 @@ and InitiatingProcessAccountName !in ("")
     or isempty(InitiatingProcessFileName)
 // Filter out PowerShell with ONLY flags and no actual command content
 | where not(FullCommand matches regex @"powershell(\.exe)?\s+-[a-zA-Z]+\s+-[a-zA-Z]+(\s+-[a-zA-Z]+)*\s*$")
+// benign patterns observed
 | where InitiatingProcessFileName in~ ("powershell.exe", "pwsh.exe", "cmd.exe")
-| where not(FullCommand endswith "")
-| where not(FullCommand endswith "")
-// benign patterns observed add as many as you wish
-| where not(FullCommand contains "")
-| where not(FullCommand contains_cs "")
+| where not(FullCommand matches regex @"powershell(\.exe)?\s+.*-ExecutionPolicy\s+(Bypass|Unrestricted|RemoteSigned)\s*$")
+| where not(FullCommand matches regex @"powershell(\.exe)?\s+-[a-zA-Z]+\s+-[a-zA-Z]+(\s+-[a-zA-Z]+)*\s*$")
 | extend FullCommand = ProcessCommandLine
 // Obfuscation Regex
 | extend
@@ -63,9 +61,23 @@ HasHiddenWindow = FullCommand matches regex @"-(w|win|window|windowstyle)\s+(h|1
 HasAMSIBypass = FullCommand matches regex @"(amsi|ETW|reflection\.assembly)",
 HasInjectionIndicators = FullCommand matches regex @"(VirtualAlloc|WriteProcessMemory|CreateRemoteThread|QueueUserAPC)",
 HasMixedCase = FullCommand matches regex @"[pP][oO0][wW][eE3][rR][sS][hH][eE3][lL]{2}"
-// attempt to extract base64 if present
-| extend Base64Match = extract(@"-(e|en|enc|encoded|encodedcommand|ec)\s+([A-Za-z0-9+/=]{50,})", 2, FullCommand)
-| extend DecodedCommand = iff(isnotempty(Base64Match), base64_decode_tostring(Base64Match), "")
+// Use simple extract for each potential base64 string position
+| extend B64_Raw1 = extract(@"-(?:encodedCommand|encodedcommand|EncodedCommand|encoded|enc|en|ec|e)\s+[""']?([A-Za-z0-9+/=]{50,})", 1, FullCommand)
+| extend B64_Raw2 = extract(@"-(?:encodedCommand|encodedcommand|EncodedCommand|encoded|enc|en|ec|e)\s+[""']?[A-Za-z0-9+/=]{50,}.*?-(?:encodedCommand|encodedcommand|EncodedCommand|encoded|enc|en|ec|e)\s+[""']?([A-Za-z0-9+/=]{50,})", 1, FullCommand)
+// Clean up quotes if present
+| extend B64_Clean1 = trim(@'[""''\s]', B64_Raw1)
+| extend B64_Clean2 = trim(@'[""''\s]', B64_Raw2)
+// Decode them
+| extend Decoded1 = iff(isnotempty(B64_Clean1), base64_decode_tostring(B64_Clean1), "")
+| extend Decoded2 = iff(isnotempty(B64_Clean2), base64_decode_tostring(B64_Clean2), "")
+// Clean control characters
+| extend Decoded1_Clean = iff(isnotempty(Decoded1), replace_regex(Decoded1, @'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', ''), "")
+| extend Decoded2_Clean = iff(isnotempty(Decoded2), replace_regex(Decoded2, @'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', ''), "")
+// Combine
+| extend DecodedCommand = strcat(
+    iff(isnotempty(Decoded1_Clean), strcat("[1] ", Decoded1_Clean), ""),
+    iff(isnotempty(Decoded2_Clean), strcat(" ### [2] ", Decoded2_Clean), "")
+)
 // Filter for obfuscation
 | where HasBase64Encoded == true
     or HasHexEncoding == true
@@ -109,3 +121,4 @@ HasMixedCase = FullCommand matches regex @"[pP][oO0][wW][eE3][rR][sS][hH][eE3][l
     FullCommand,
     DecodedCommand
 | order by TimeGenerated desc
+ 
