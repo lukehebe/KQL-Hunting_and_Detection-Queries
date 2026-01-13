@@ -21,7 +21,7 @@
 DeviceProcessEvents
 // Account filtering
 | where AccountName !in ("")
-and InitiatingProcessAccountName !in (")
+and InitiatingProcessAccountName !in ("")
 | where FileName in~ ("powershell.exe", "pwsh.exe")
 | where isnotempty(ProcessCommandLine)
 | where ProcessCommandLine !~ "powershell.exe"
