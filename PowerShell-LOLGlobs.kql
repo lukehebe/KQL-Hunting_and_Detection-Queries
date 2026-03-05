@@ -1,0 +1,25 @@
+Core patterns: gcm/Get-Command + wildcards on Invoke-Expression
+
+DeviceProcessEvents
+| where FileName in~ ("powershell.exe", "pwsh.exe", "powershell_ise.exe")
+| where ProcessCommandLine has_any ("gcm", "Get-Command")
+| where ProcessCommandLine has_any ("*", "?", "[", "-match", "Invok", "Expr", "xpression", "I*")
+    and ProcessCommandLine has_any ("Invoke", "Expression", "iex", "IEX")
+| where ProcessCommandLine matches regex @"(?i)(gcm|Get-Command).*(\*|\?|\[|\]).*(Invok|Expr|xpression|IEX)"
+| summarize
+    Count = count(),
+    FirstSeen = min(Timestamp),
+    LastSeen = max(Timestamp),
+    SampleCmdLine = make_set(ProcessCommandLine, 5),
+    SampleParent = make_set(InitiatingProcessFileName, 3)
+    by DeviceName, AccountName, InitiatingProcessCommandLine
+| order by Count desc
+
+Get-Alias (gal) + wildcard on "iex" alias (very common evasion)
+DeviceProcessEvents
+| where FileName in~ ("powershell.exe", "pwsh.exe")
+| where ProcessCommandLine has_any ("gal", "Get-Alias")
+| where ProcessCommandLine has_any ("i?x", "?ex", "i*x", "?e[x]", "iex", "IEX")
+| where ProcessCommandLine matches regex @"(?i)(gal|Get-Alias).*(\?|\*).*([iI][eE][xX]|[?e][?x])"
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine, InitiatingProcessFileName
+| order by Timestamp desc
