@@ -1,0 +1,9 @@
+//Click-fix Detection:
+//This alert fires on clickfix detection (windows key + R) pasting a malicious script/command via social engineering
+DeviceRegistryEvents
+| where Timestamp > ago(365d)
+| where ActionType has_any ('RegistryValueSet','RegistryKeyCreated')
+| where RegistryKey contains "\\Explorer\\RunMRU"
+| where RegistryValueData has_any ('mshta', 'wscript', 'regsvr32', 'bitsadmin', 'cscript', 'nslookup')
+| project TimeGenerated, DeviceName, RegistryKey, RegistryValueData
+
