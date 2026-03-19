@@ -4,6 +4,6 @@ DeviceRegistryEvents
 | where Timestamp > ago(365d)
 | where ActionType has_any ('RegistryValueSet','RegistryKeyCreated')
 | where RegistryKey contains "\\Explorer\\RunMRU"
-| where RegistryValueData has_any ('mshta', 'wscript', 'regsvr32', 'bitsadmin', 'cscript', 'nslookup')
+| where RegistryValueData has_any ('mshta', 'wscript', 'regsvr32', 'bitsadmin', 'cscript', 'nslookup', 'msiexec')
 | project TimeGenerated, DeviceName, RegistryKey, RegistryValueData
 
