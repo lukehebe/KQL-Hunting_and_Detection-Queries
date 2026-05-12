@@ -1,0 +1,13 @@
+let DigitalOceanSubnets = dynamic([
+    "104.248.0.0/14", "138.197.0.0/16", "159.65.0.0/16", "165.22.0.0/16", 
+    "167.71.0.0/16", "188.166.0.0/16", "206.189.0.0/16"
+]);
+let NetworkTraffic = DeviceNetworkEvents
+| where ipv4_is_in_any_range(RemoteIP, DigitalOceanSubnets)
+| project TimeGenerated, DeviceName, RemoteIP, InitiatingProcessId, InitiatingProcessFileName, InitiatingProcessCommandLine;
+DeviceProcessEvents
+| where TimeGenerated > ago(7d)
+| where InitiatingProcessFileName !in ("chrome.exe", "firefox.exe", "msedge.exe")
+| join kind=inner (NetworkTraffic) on DeviceName, $left.ProcessId == $right.InitiatingProcessId
+| project TimeGenerated, DeviceName, RemoteIP, InitiatingProcessFileName, InitiatingProcessCommandLine, FileName, ProcessCommandLine, AccountName
+| sort by TimeGenerated desc
