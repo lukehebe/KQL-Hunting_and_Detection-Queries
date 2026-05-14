@@ -4,7 +4,7 @@ let LookupWindow = 15m;
 DeviceEvents
 | where ActionType == "GetClipboardData"
 // Exclude those noisy system/machine accounts
-| where InitiatingProcessAccountName !in ("umfd-0", "umfd-1", "dwm-0", "dwm-1", "dwm-2")
+| where InitiatingProcessAccountName !in ("")
 | project ClipboardTime = Timestamp, DeviceId, DeviceName, 
           ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, 
           InitiatingProcessId
