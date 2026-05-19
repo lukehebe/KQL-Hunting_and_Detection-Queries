@@ -1,0 +1,30 @@
+DeviceImageLoadEvents
+// Limit the initial search space to the last 30 days
+| where TimeGenerated > ago(30d)
+| where InitiatingProcessFileName =~ "wuauclt.exe"
+| where InitiatingProcessCommandLine has_any ('/UpdateDeploymentProvider', '/RunHandlerComServer')
+// Tune by dll hash
+| where SHA256 !in ()
+| project ImageLoadTime = TimeGenerated, 
+          DeviceName, 
+          WuaucltCommandLine = InitiatingProcessCommandLine, 
+          LoadedDllName = FileName, 
+          LoadedDllSHA256 = SHA256,
+          InitiatingProcessId, 
+          InitiatingProcessCreationTime
+// Join with Process Events
+| join kind=inner (
+    DeviceProcessEvents
+    // Limit the joined table to 30 days as well for performance
+    | where TimeGenerated > ago(30d)
+    | project ChildProcessTime = TimeGenerated, 
+              DeviceName, 
+              ChildProcessName = FileName, 
+              ChildProcessCommandLine = ProcessCommandLine, 
+              ChildProcessSHA256 = SHA256,
+              InitiatingProcessId, 
+              InitiatingProcessCreationTime
+) on DeviceName, InitiatingProcessId, InitiatingProcessCreationTime
+| where ChildProcessTime >= ImageLoadTime
+| project ImageLoadTime, ChildProcessTime, DeviceName, WuaucltCommandLine, LoadedDllName, ChildProcessName, ChildProcessCommandLine, LoadedDllSHA256, ChildProcessSHA256
+| order by ImageLoadTime desc
