@@ -1,0 +1,14 @@
+// This is something ive come accross alot finding obfuscated js in compromised wp sites calling out to blockchain domains with obfuscated JS and a hardcoded smart contract to rotate fresh infra.
+// Define the specific Blockchain RPC nodes used by TA's
+let EtherHidingNodes = dynamic([
+    '1rpc.com', 'polygon-rpc.com', 'ethereum-rpc.publicnode.com', 
+    'opbnb.publicnode.com', 'arbitrum-one.publicnode.com', 'base.publicnode.com', 
+    'polygon.gateway.tenderly.co', 'polygon-pokt.nodies.app', 
+    'polygon-bor-rpc.publicnode.com', 'polygon.drpc.org', 'polygon-public.nodies.app', 
+    'api.zan.top', 'polygon.lava.build', 'bsc-testnet.public.blastapi.io'
+]);
+DeviceNetworkEvents
+| where RemoteUrl has_any (EtherHidingNodes)
+| extend ProcessName = tolower(InitiatingProcessFileName)
+| project Timestamp, DeviceName, InitiatingProcessFileName, InitiatingProcessCommandLine, RemoteUrl, RemoteIP, RemotePort, LocalIP
+| sort by Timestamp desc
