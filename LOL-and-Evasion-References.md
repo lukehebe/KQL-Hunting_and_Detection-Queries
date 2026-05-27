@@ -1,4 +1,4 @@
-**Sources for common living off the land techniques:**
+**Sources for common living off the land and evasion sources:**
 
 - **LOLbas** – Windows living off the land binaries -> https://lolbas-project.github.io/#
 - **LOObins** – Mac OS living off the land binaries -> https://www.loobins.io/ 
@@ -12,3 +12,4 @@
 - **LOL Globs** – wildcard pattern evasion - https://0xv1n.github.io/LOLGlobs/ 
 - **LOL Exfil** - living off the land exfiltration - https://lolexfil.github.io/
 - **LOLRMM** - Living off the land RMM tools - https://lolrmm.io/
+- **LOLActiveDrirectory** - living off the land AD resources - https://lolad-project.github.io
