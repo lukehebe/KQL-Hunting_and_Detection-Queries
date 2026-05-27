@@ -10,3 +10,4 @@
 - **LOLESXI** – common living off the land techniques for esxi abuse binaries/scripts -  https://lolesxi-project.github.io/LOLESXi/# 
 - **Argfuscator**– commandline obfuscation tool - https://argfuscator.net/ 
 - **LOL Globs** – wildcard pattern evasion - https://0xv1n.github.io/LOLGlobs/ 
+- **LOL Exfil** - living off the land exfiltration - https://lolexfil.github.io/
