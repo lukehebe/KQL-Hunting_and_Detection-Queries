@@ -11,3 +11,4 @@
 - **Argfuscator**– commandline obfuscation tool - https://argfuscator.net/ 
 - **LOL Globs** – wildcard pattern evasion - https://0xv1n.github.io/LOLGlobs/ 
 - **LOL Exfil** - living off the land exfiltration - https://lolexfil.github.io/
+- **LOLRMM** - Living off the land RMM tools - https://lolrmm.io/
