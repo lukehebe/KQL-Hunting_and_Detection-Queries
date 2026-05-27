@@ -1,0 +1,19 @@
+//GreenPlasma is a Windows local privilege escalation (LPE) primitive exploiting the Windows Text Services Framework (TSF) / CTF (Collaborative Translation Framework) subsystem,  
+// specifically how ctfmon.exe and related components (especially on the Winlogon desktop) handle named objects in the Object Manager namespace. 
+// It enables an unprivileged interactive user to create an arbitrary Section Object (backed by memory) in a location that SYSTEM-context code implicitly trusts. 
+// Currently when this detection was created it is still unpatched.
+
+DeviceImageLoadEvents
+| where FileName =~ "cldapi.dll"
+| where InitiatingProcessFolderPath !startswith @"C:\Windows\System32\"
+| where InitiatingProcessFolderPath !startswith @"C:\Windows\SysWOW64\"
+| project 
+    TimeGenerated,
+    DeviceName,
+    AccountName = InitiatingProcessAccountName,
+    InitiatingProcessFileName,
+    InitiatingProcessSHA256,
+    InitiatingProcessCommandLine,
+    InitiatingProcessFolderPath,
+    FolderPath
+| order by TimeGenerated desc
