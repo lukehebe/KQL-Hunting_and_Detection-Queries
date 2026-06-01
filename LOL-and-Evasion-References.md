@@ -13,3 +13,5 @@
 - **LOL Exfil** - living off the land exfiltration - https://lolexfil.github.io/
 - **LOLRMM** - Living off the land RMM tools - https://lolrmm.io/
 - **LOLActiveDrirectory** - living off the land AD resources - https://lolad-project.github.io
+- **LOLC2** - Collection of living off the land c2 sources - https://lolc2.github.io/
+- **LOLSAAS** - Comprehensive directory of Free SaaS platforms - with known C2 frameworks, exfiltration tools, MITRE ATT&CK mappings, OPSEC ratings - https://lolfsaas.github.io/
