@@ -1,0 +1,14 @@
+let Malicious_Extensions = 
+    externaldata(extension_id:string, metadata_comment:string)
+    [
+        h@"https://raw.githubusercontent.com/mthcht/awesome-lists/main/Lists/VSCODE%20Extensions/vscode_extensions_static.csv"
+    ]
+    with (format="csv", ignoreFirstRecord=true)
+    | summarize make_list(extension_id);
+DeviceFileEvents
+| where TimeGenerated > ago(90d)
+| where ActionType in~ ("FileCreated", "NewFile")
+// Look for the extension id being dropped inside the standard VS Code extensions path
+| where FolderPath has ".vscode" and FolderPath has "extensions"
+| where FolderPath has_any (Malicious_Extensions)
+| project TimeGenerated, DeviceName, ActionType, FileName, FolderPath, RequestAccountName, InitiatingProcessFileName
