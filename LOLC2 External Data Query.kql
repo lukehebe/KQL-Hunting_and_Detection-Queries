@@ -1,0 +1,21 @@
+let LOLC2_Feed = 
+    externaldata(url_root_domain:string, dest:string, dest_nt_domain:string, metadata_type:string, metadata_priority:string, metadata_comment:string)
+    [
+        h@"https://raw.githubusercontent.com/mthcht/awesome-lists/main/Lists/lolc2_abused_domains.csv"
+    ]
+    with (format="csv", ignoreFirstRecord=true)
+    // Focus on high/medium priority domain fronting & delivery tactics to minimize normal cloud noise
+    | where metadata_priority in~ ("high", "medium")
+    | summarize AbusedDomains = make_list(url_root_domain);
+DeviceNetworkEvents
+| where TimeGenerated > ago(30d)
+| where ActionType in~ ("HttpConnectionByProcess", "HttpsConnectionByProcess", "ConnectionSuccess")
+| where isnotempty(RemoteUrl)
+// Efficiently filter rows where the RemoteUrl ends with or contains an abused root domain
+| where RemoteUrl has_any (LOLC2_Feed)
+// Enforce strict root-domain or subdomain matching to avoid false positives (e.g., matching "mywindows.net" incorrectly)
+// Change 'if' to 'iif'
+| extend ParsedUrl = parse_url(iif(RemoteUrl startswith "http", RemoteUrl, strcat("https://", RemoteUrl)))| extend Host = tostring(ParsedUrl.Host)
+| where Host has_any (LOLC2_Feed)
+// Project critical investigation details to hunt for suspicious anomalies
+| project TimeGenerated, DeviceName, RemoteUrl, Host, RemoteIP, RemotePort, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessFolderPath
