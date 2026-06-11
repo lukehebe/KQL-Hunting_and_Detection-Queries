@@ -7,7 +7,7 @@ let Malicious_Extensions =
     | summarize make_list(extension_id);
 DeviceFileEvents
 | where TimeGenerated > ago(90d)
-| where ActionType in~ ("FileCreated", "NewFile")
+| where ActionType in~ ("FileCreated")
 // Look for the extension id being dropped inside the standard VS Code extensions path
 | where FolderPath has ".vscode" and FolderPath has "extensions"
 | where FolderPath has_any (Malicious_Extensions)
