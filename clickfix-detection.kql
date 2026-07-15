@@ -1,26 +1,3 @@
-// Clickfix Detection with Device events joined with DeviceNetwork events to correlate with clipboard time + network time
-// Needs tuning based on your environment but highly effective
-let LookupWindow = 15m;
-DeviceEvents
-| where ActionType == "GetClipboardData"
-// Exclude those noisy system/machine accounts
-| where InitiatingProcessAccountName !in ("")
-| project ClipboardTime = Timestamp, DeviceId, DeviceName, 
-          ActionType, InitiatingProcessFileName, InitiatingProcessCommandLine, 
-          InitiatingProcessId
-| join kind=inner (
-    DeviceNetworkEvents
-    | where RemoteIPType == "Public"
-    | project NetworkTime = Timestamp, DeviceId, 
-              NetworkProcessFileName = InitiatingProcessFileName, 
-              RemoteIP, RemoteUrl, InitiatingProcessId
-) on DeviceId, InitiatingProcessId
-| where NetworkTime between (ClipboardTime .. (ClipboardTime + LookupWindow))
-// Focusing on browsers or office apps as the entry point
-| where InitiatingProcessFileName in~ ("chrome.exe", "msedge.exe", "firefox.exe", "explorer.exe")
-| project ClipboardTime, NetworkTime, DeviceName, InitiatingProcessFileName, RemoteIP, RemoteUrl, InitiatingProcessCommandLine
-
-
 // Basic Click-fix Detection:
 //This alert fires on clickfix detection (windows key + R) pasting a malicious script/command via social engineering
 DeviceRegistryEvents
