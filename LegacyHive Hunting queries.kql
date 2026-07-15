@@ -1,0 +1,23 @@
+//This query hunts for command-line attempts to manually load registry hives (specifically targeting usrclass.dat or other user hives) using reg.exe. 
+// This is a common post-exploitation behavior.
+DeviceProcessEvents
+| where ProcessCommandLine has "reg" and ProcessCommandLine has "load"
+| where ProcessCommandLine has_any ("usrclass.dat", "ntuser.dat")
+// Filter out legitimate system setups or domain migrations if necessary
+| project TimeGenerated, DeviceName, AccountName, InitiatingProcessFileName, ProcessCommandLine, InitiatingProcessParentFileName
+| order by TimeGenerated desc
+
+
+
+//Legitimate user profile hive loading is performed by the System account via svchost.exe (hosting ProfSvc). 
+//If a standard user account or an unexpected process triggers the mounting of user hives (especially into user class roots or outside of normal login sequences), it is highly suspicious.
+DeviceRegistryEvents
+| where ActionType in~ ("RegistryKeyCreated", "RegistryValueSet")
+// Focus on Registry paths associated with user classes and hive mounting points
+| where RegistryKey has @"\Registry\User" or RegistryKey has @"Software\Classes"
+// Look for references to loading or mounting hive files
+| where RegistryValueData has_any ("usrclass.dat", "ntuser.dat", "System32\\config")
+// Filter out the legitimate Profile Service host to reduce noise
+| where not(InitiatingProcessParentFileName =~ "services.exe" and InitiatingProcessFileName =~ "svchost.exe")
+| project TimeGenerated, DeviceName, RegistryKey, RegistryValueName, RegistryValueData, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessAccountName
+| order by TimeGenerated desc
