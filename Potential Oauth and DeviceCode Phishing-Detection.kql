@@ -1,5 +1,6 @@
 // OAuth phishing (often called Consent Phishing) is highly effective even against PIV/CAC cards because it targets a different layer of the security stack. 
 // While PIV cards are the gold standard for Authentication (proving who you are), OAuth phishing targets Authorization (deciding what an app can do on your behalf).
+// Investigate the url that had been sent to the reciepient through a thirdparty tool like VT/GTI , Cloudflare radar , urlscan.io - odds are it will redirect to the malcious page.
 
 
 EmailUrlInfo
