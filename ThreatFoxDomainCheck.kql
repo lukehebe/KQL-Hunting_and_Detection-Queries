@@ -1,21 +1,26 @@
-let MaliciousDomainsRaw = externaldata(data: string)[@"https://threatfox.abuse.ch/export/csv/domains/recent/"] 
-with (format="txt", ignoreFirstRecord=False);
-let MalDomain = materialize (
-    MaliciousDomainsRaw
-    | where data !startswith "#"  // Skip comment lines
-    | where data !startswith "\"first_seen_utc\""  // Skip header
-    | where isnotempty(data)
-    | extend parsed = split(data, '", "')
-    | extend domain = tostring(parsed[2])
-    | extend domain = trim('"', domain)  // Remove quotes
-    | where isnotempty(domain)
-    | distinct domain
-    | project domain
+let ThreatIntelFeed = externaldata(LineInfo: string)
+    [@"https://threatfox.abuse.ch/downloads/hostfile/"]
+    with (format="txt", ignoreFirstRecord=true);
+let IPRegex = @"[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}";
+let MalwareDomains = materialize(
+    ThreatIntelFeed
+    | where LineInfo matches regex IPRegex
+    | extend domain = trim(" ", extract(@"127\.0\.0\.1\s+(.*)", 1, LineInfo))
+    | where isnotempty(domain) and domain !contains "/"   // exclude any accidental paths
+    | distinct tolower(domain)   // case-insensitive + lowercase for better matching
 );
-union SecurityEvent, CommonSecurityLog, EmailUrlInfo, DeviceNetworkEvents
-| where TimeGenerated >= ago(365d)
-| where DomainName has_any (MalDomain) 
-    or DestinationHostName has_any (MalDomain) 
-    or UrlDomain has_any (MalDomain) 
-    or RemoteUrl has_any (MalDomain)
-//| distinct RequestContext
+DeviceNetworkEvents
+| where Timestamp >= ago(365d)   // use Timestamp (standard in MDE) — TimeGenerated may not exist here
+| extend RemoteDomain = tolower(extract(@"^https?://([^/:]+)", 1, RemoteUrl))   // extract just the hostname from RemoteUrl
+| where isnotempty(RemoteDomain)
+| where RemoteDomain in~ (MalwareDomains)   // in~ is optimized & case-insensitive
+| project 
+    Timestamp,
+    RemoteUrl,
+    RemoteIP,
+    DeviceName,
+    InitiatingProcessCommandLine,
+    InitiatingProcessFileName,
+    InitiatingProcessAccountDomain,
+    InitiatingProcessAccountName
+| order by Timestamp desc
