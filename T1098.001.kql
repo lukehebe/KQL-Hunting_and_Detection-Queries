@@ -1,0 +1,11 @@
+DeviceProcessEvents
+| where Timestamp > ago(365d)
+| extend ProcessLower = tolower(FileName), CmdLower = tolower(ProcessCommandLine)
+| where ProcessLower in~ ("net.exe", "net1.exe")
+    and CmdLower has_any ("localgroup", "group")
+    and CmdLower has "/add"
+| extend TargetGroup = extract(@"localgroup\s+""?([^""\s]+)", 1, CmdLower)
+| extend AddedAccount = extract(@"/add\s+""?([^""\s]+)", 1, CmdLower)
+| extend IsHighRisk = iff(CmdLower has_any ("administrators", "remote desktop users", "winrmremotewmiusers"), true, false)
+| project Timestamp, DeviceName, InitiatingProcessAccountName, IsHighRisk, TargetGroup, ProcessCommandLine
+| sort by IsHighRisk desc, Timestamp desc
