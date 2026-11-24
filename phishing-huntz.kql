@@ -1,0 +1,109 @@
+// 1. Define the specific LOTS domains heavily abused for hosting phishing landing pages/forms
+let LOTS_Phish_Domains = dynamic([
+    "azurewebsites.net", "web.core.windows.net", "blob.core.windows.net", "azureedge.net", "azurefd.net", "azurestaticapps.net",
+    "cloudfront.net", "amazonaws.com",
+    "docs.google.com", "drive.google.com", "sites.google.com", "translate.goog", "googleusercontent.com", "web.app", "firebaseapp.com", "appspot.com",
+    "workers.dev", "pages.dev", "trycloudflare.com",
+    "herokuapp.com", "netlify.app", "glitch.me", "webflow.io", "wixsite.com", "godaddysites.com", "weebly.com", "canva.com",
+    "forms.office.com", "sway.office.com", "sharepoint.com", "attachment.outlook.live.net", "attachments.office.net",
+    "typeform.com", "beautiful.ai", "clickfunnels.com", "surveycake.com", "express.adobe.com", "spark.adobe.com"
+]);
+// 2. Base baseline period to calculate what "normal" subdomains look like in the network
+let Lookback_Period = 14d;
+let Detection_Period = 7d;
+let WellKnown_Subdomains = UrlClickEvents
+| where TimeGenerated between (ago(Lookback_Period) .. ago(Detection_Period))
+| where Url has_any (LOTS_Phish_Domains)
+| extend ParsedUrl = parse_url(Url)
+| extend Host = tostring(ParsedUrl.Host)
+| summarize Count = count() by Host
+| where Count < 5 // Adjust threshold based on your enterprise size
+| project Host;
+// 3. Analyze the active detection window for anomalous or newly-seen phishing URLs
+UrlClickEvents
+| where TimeGenerated > ago(Detection_Period)
+// Focus on actual clicks or emails delivered
+| where ActionType in~ ("ClickAllowed", "ClickBlocked", "FileDownloaded") or isnotempty(NetworkMessageId)
+| where Url has_any (LOTS_Phish_Domains)
+| extend ParsedUrl = parse_url(Url)
+| extend Host = tostring(ParsedUrl.Host)
+| extend URL_Path = tostring(ParsedUrl.Path)
+// Filter out the noisy, known-good corporate subdomains
+| where Host !in (WellKnown_Subdomains)
+// Phishing indicators: Look for deep paths or specific keywords in the URL string
+| extend Contains_Phish_Keywords = iff(Url has_any ("login", "signin", "verify", "secure", "auth", "account", "update", "kyc", "office365", "sharepoint", "outlook"), 1, 0)
+| extend Path_Depth = array_length(split(URL_Path, "/"))
+// Prioritize alerts where a user actually bypassed warnings or highly unusual subdomains
+| project TimeGenerated, AccountUpn, Host, Url, ActionType, Contains_Phish_Keywords, Path_Depth, NetworkMessageId
+| order by Contains_Phish_Keywords desc, TimeGenerated desc
+
+
+
+// URL Clicks from suspicious TLDs
+let SuspiciousTLD = externaldata(TLD: string)[@"https://raw.githubusercontent.com/cyb3rmik3/Hunting-Lists/main/netcraft-tlds.csv"] with (format="csv", ignoreFirstRecord=True);
+// Step 1: Parse URLs from inbound emails to isolate the Top-Level Domain
+EmailUrlInfo
+| extend URLArray = split(parse_url(Url).Host, '.')
+| extend TLD = strcat(".", URLArray[array_length(URLArray) - 1])
+// Step 2: Match against the Netcraft suspicious TLD list
+| join kind=inner SuspiciousTLD on TLD
+// Step 3: Correlate with EmailEvents to verify successful delivery to the Inbox
+| join kind=inner (
+    EmailEvents
+    | where DeliveryAction == "Delivered" 
+) on NetworkMessageId
+// Step 4: Join with UrlClickEvents to find instances where a user clicked the link
+| join kind=inner (
+    UrlClickEvents
+) on NetworkMessageId
+| project Timestamp, AccountUpn, Subject, SenderFromAddress, RecipientEmailAddress, Url, TLD, ActionType, IsClickedThrough
+
+
+// Hits on what emails are slipping through possibly finding compromised customers/clients
+EmailUrlInfo
+| where TimeGenerated > ago(14d)
+// Look for common cloud hosting platforms misused by actors
+| where Url has "googleapis.com" or Url has "blob.core.windows.net" or Url has "limewire.com"
+| join kind=inner (
+    EmailEvents
+    | where DeliveryAction !in ("Blocked", "Junk") // Filter for what slipped through
+) on NetworkMessageId
+| project TimeGenerated, SenderMailFromAddress, RecipientEmailAddress, Subject, Url, DeliveryAction
+| where Url !contains ".jpg"
+| where Url has_any ('.html', '.txt', '.zip', '.exe', '.msi', '.scr', '.hta')
+| summarize UrlCount = count() by SenderMailFromAddress, Subject, Url
+| sort by UrlCount desc
+
+
+
+// Find emails that were blocked and delivered
+// 1. Find message IDs that had both Delivered and Blocked
+let MixedOutcomeMessages =
+EmailEvents
+| where Timestamp between (datetime(2026-04-01T17:20:00Z) .. datetime(2026-04-14T17:40:00Z))  // adjust as needed
+| where DeliveryAction in ("Delivered", "Blocked")
+| summarize
+    DeliveredCount = countif(DeliveryAction == "Delivered"),
+    BlockedCount   = countif(DeliveryAction == "Blocked")
+by NetworkMessageId, Subject, SenderFromAddress
+| where DeliveredCount > 0 and BlockedCount > 0;
+// 2. Return all the individual rows for those messages
+EmailEvents
+| where Timestamp between (datetime(2026-04-01T17:20:00Z) .. datetime(2026-04-14T17:40:00Z))
+| where SenderFromAddress !contains "sba.gov"
+| where SenderFromAddress !contains "box.com"
+| where SenderFromAddress != "noreply@concursolutions.com"
+| where SenderFromAddress !contains ".gov"
+| where DeliveryAction in ("Delivered", "Blocked")
+| join kind=inner MixedOutcomeMessages on NetworkMessageId
+| project
+    Timestamp,
+    NetworkMessageId,
+    Subject,
+    SenderFromAddress,
+    RecipientEmailAddress,
+    DeliveryAction,
+    DeliveryLocation,
+    ThreatTypes,
+    DetectionMethods
+| order by Timestamp desc
